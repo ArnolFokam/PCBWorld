@@ -115,8 +115,7 @@ def corner_deg_to_code(deg: int) -> int:
 # and eval would fall back to the current default. We can't error (old
 # checkpoints must stay loadable), but we surface the drift with a warning
 # instead of letting it vanish. Register the OLD key here whenever you rename or
-# remove an env/reward/policy param (same discipline as ``DEAD_PATHS`` in
-# tools/docs/check_docs.py). Empty = no known drift yet — training-only args
+# remove an env/reward/policy param. Empty = no known drift yet — training-only args
 # (lr, batch_size, …) are NOT listed here and never warn.
 _RENAMED_CKPT_KEYS: dict[str, str] = {
     # "old_key": "renamed to <new_key>" | "removed (since v<X.Y>)",

@@ -16,9 +16,8 @@ Re-sync procedure when the check fails:
      and paste the printed BASES block here.
 
 Digests are extracted STATICALLY (ast over the module file — no import), so
-this module is stdlib-only and the check runs in any env: enforced both by
-``tests/test_diagnostics/test_speed_profiler_mirrors.py`` and, at push time,
-by the ``mirror-sync`` check in ``tools/docs/check_docs.py`` (pre-push hook).
+this module is stdlib-only and the check runs in any env: enforced by
+``tests/test_diagnostics/test_speed_profiler_mirrors.py``.
 """
 from __future__ import annotations
 

@@ -27,6 +27,11 @@ Servers are pooled per client process: closing an engine parks its server
 (router destroyed, process kept) and the next engine construction reuses
 it, so per-board reloads don't pay the ~0.8s spawn+import cost. Parked and
 live servers alike exit on client-process death (socket EOF) — no orphans.
+A server whose resident set has outgrown ``KICAD_ENGINE_MAX_RSS_MB``
+(default 1024; 0 disables) is killed at release instead of parked: the
+engine process keeps growing slowly per routed step, so an indefinitely
+reused server would grow without bound (the why and the measurement:
+``_parse_rss_budget_mb``).
 """
 
 from __future__ import annotations
@@ -43,6 +48,7 @@ import tempfile
 import time
 import weakref
 
+from pcb_world.diag import read_rss_mb
 from pcb_world.engine.containers import KRL_FIELDS, from_wire, to_wire
 
 _LEN = struct.Struct(">Q")
@@ -127,6 +133,41 @@ def set_server_reuse(max_idle: int) -> None:
     while len(_IDLE_SERVERS) > _MAX_IDLE:
         _IDLE_SERVERS.pop().kill()
 
+
+# RSS budget for a server about to be PARKED (checked at release, never
+# mid-episode): a server whose resident set exceeds it is killed instead of
+# parked, so the engine process's residual per-step growth — ~1.4-4 KB per
+# routed step, measured with the ``DRC_RTREE::clear()`` leak fix of engine
+# v1.0.0 in place (the fix removed the bulk of the leak, not all of it) — is
+# capped at the budget plus one episode. Measured on a multi-day replay run:
+# 64 reused servers reached ~7 GB each in 2.2 days and were OOM-killed while
+# the replay workers stayed flat.
+# ``KICAD_ENGINE_MAX_RSS_MB=0`` disables the budget; an unparsable value is
+# an error, never a silent fallback to the default.
+def _parse_rss_budget_mb(raw: str | None) -> int:
+    if raw is None or raw.strip() == "":
+        return 1024
+    try:
+        mb = int(raw)
+    except ValueError:
+        raise ValueError(
+            "KICAD_ENGINE_MAX_RSS_MB must be an integer number of MB "
+            f"(0 = off), got {raw!r}") from None
+    if mb < 0:
+        raise ValueError(f"KICAD_ENGINE_MAX_RSS_MB must be >= 0, got {mb}")
+    return mb
+
+
+_MAX_RSS_MB = _parse_rss_budget_mb(os.environ.get("KICAD_ENGINE_MAX_RSS_MB"))
+_RSS_RECYCLES = 0    # servers killed over budget by this client process
+
+
+def set_server_rss_budget(max_rss_mb: int) -> None:
+    """Set the RSS budget (MB) a server must be under to be parked for
+    reuse; 0 = never recycle on size. Takes effect at the next release."""
+    global _MAX_RSS_MB
+    _MAX_RSS_MB = max(0, int(max_rss_mb))
+
 # Every conn ever created (weak — killed conns drop out on GC). The atexit
 # hook tears down whatever is still alive at normal interpreter exit (parked
 # AND in-use servers), removing their /tmp/krl_ipc_* dirs. Processes that
@@ -162,20 +203,25 @@ class _ServerConn:
     """One spawned server process + its socket."""
 
     def __init__(self) -> None:
+        # Refusals come first, before anything is created: a refused spawn must
+        # leave no krl_ipc_* dir or open stderr handle behind.
+        if not os.path.isfile(_SERVER_SCRIPT):
+            raise EngineServerCrashed(
+                _ENGINE_MISSING_HINT.format(path=_SERVER_SCRIPT))
+        # Provenance: the server must load a router built from THIS tree's C++
+        # — the one guard call, shared with the in-process load site.
+        import pcb_world.engine as _engine
+        _engine.ensure_router_provenance()
         self.tmpdir = tempfile.mkdtemp(prefix="krl_ipc_")
         self.sock: socket.socket | None = None   # kill() may run before connect
         sock_path = os.path.join(self.tmpdir, "s.sock")
         self.stderr_path = os.path.join(self.tmpdir, "server_stderr.log")
         self._stderr_f = open(self.stderr_path, "a+b")   # a+: _stderr_tail reads it
-        if not os.path.isfile(_SERVER_SCRIPT):
-            raise EngineServerCrashed(
-                _ENGINE_MISSING_HINT.format(path=_SERVER_SCRIPT))
         # The engine resolves both of these against ITS OWN repository root,
         # which is the submodule checkout — not this tree, where the build and
         # the crash logs live. Point it at ours unless the caller chose values.
         env = os.environ.copy()
-        env.setdefault("PCBWORLD_KICAD_RL_BUILD_DIR",
-                       os.path.join(_REPO_ROOT, "build_rl"))
+        env.setdefault("PCBWORLD_KICAD_RL_BUILD_DIR", _engine.router_build_dir())
         env.setdefault("KICAD_CRASH_LOG_DIR",
                        os.path.join(_REPO_ROOT, "var", "crashlogs"))
         self.proc = subprocess.Popen(
@@ -304,6 +350,10 @@ class _ServerConn:
         except (OSError, ValueError):     # ValueError: handle already closed
             return "(server stderr unavailable)"
 
+    def rss_mb(self) -> float | None:
+        """Server resident set size in MB (None off-Linux or once it exited)."""
+        return read_rss_mb(self.pid)
+
     def alive(self) -> bool:
         if self.proc.poll() is not None:
             return False
@@ -429,10 +479,20 @@ class RouterProxy:
         except Exception:  # noqa: BLE001 — crashed server: drop it
             conn.kill()
             return
-        if len(_IDLE_SERVERS) < _MAX_IDLE:
-            _IDLE_SERVERS.append(conn)
-        else:
+        if len(_IDLE_SERVERS) >= _MAX_IDLE:
             conn.kill()
+            return
+        rss = conn.rss_mb() if _MAX_RSS_MB > 0 else None
+        if rss is not None and rss > _MAX_RSS_MB:
+            global _RSS_RECYCLES
+            _RSS_RECYCLES += 1
+            print(f"[engine-ipc] server pid {conn.pid} recycled: rss {rss:.0f} MB "
+                  f"> KICAD_ENGINE_MAX_RSS_MB {_MAX_RSS_MB} "
+                  f"(recycle #{_RSS_RECYCLES} in client pid {os.getpid()})",
+                  file=sys.stderr, flush=True)
+            conn.kill()
+            return
+        _IDLE_SERVERS.append(conn)
 
 
 def acquire_router(

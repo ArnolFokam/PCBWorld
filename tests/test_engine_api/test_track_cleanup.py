@@ -256,8 +256,12 @@ class TestCrossProcessDeterminism:
 
     def test_same_result_in_a_fresh_process(self, cleanup_board_path: str) -> None:
         _import_krl()
+        # the loaded module's own directory: this tree may point at a build elsewhere
+        # (PCBWORLD_KICAD_RL_BUILD_DIR — a build snapshot, another clone's build_rl, …)
+        import kicad_rl_router
+
         probe = _DETERMINISM_PROBE.format(
-            rl_dir=str(PROJECT_ROOT / "build_rl" / "pcbnew" / "python" / "rl"),
+            rl_dir=str(Path(kicad_rl_router.__file__).resolve().parent),
             board=cleanup_board_path,
         )
         runs = []

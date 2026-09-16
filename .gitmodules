@@ -7,10 +7,6 @@
 	shallow = true
 	ignore = dirty
 
-[submodule "agents/RAGEN"]
-	path = external/RAGEN
-	url = https://github.com/mll-lab-nu/RAGEN.git
-	ignore = dirty
 [submodule "agents/verl-agent"]
 	path = external/verl-agent
 	url = https://github.com/langfengQ/verl-agent.git

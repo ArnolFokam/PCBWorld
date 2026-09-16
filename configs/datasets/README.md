@@ -14,7 +14,7 @@ configs/datasets/
   local/         ← personal / not promoted (gitignored; personal dataset_dir OK)
 
 experiments/kdd/configs/datasets/     ← paper-only splits, kept with the paper recipes
-  d2a.json                            synth 2-layer v2 (D2-A in the paper; README §2 generates it)
+  d2a.json                            synth 2-layer v2 (D2-A in the paper; `tools/quickstart/train_rl.sh` generates it)
   grids/ 10net_2pin_1layer_v2.json    synth 1-layer split (generator output, Figure 5)
   misc/  multi_pin_2layer_v2.json     synth 2-layer split (generator output)
 ```
@@ -26,7 +26,7 @@ the setup scripts build the board set and its split json in one pass, so a missi
 
 | id | split json | difficulty | what |
 |----|-----------|-----------|------|
-| **d3a** | `d3.json` | `easy` | real boards, small (PCBench). The 679 paper boards; README Quick start §3 rebuilds them from the public PCBench clone with [`tools/datagen/pcbench_prep/`](../../tools/datagen/pcbench_prep/README.md) into `pcbench/exacad_sorted` |
+| **d3a** | `d3.json` | `easy` | real boards, small (PCBench). The 679 paper boards; `tools/quickstart/prepare_pcbench.sh` rebuilds them from the public PCBench clone (the chain in [`tools/datagen/pcbench_prep/`](../../tools/datagen/pcbench_prep/README.md)) into `pcbench/exacad_sorted` |
 | **d3b** | `d3.json` | `medium` | real boards, medium (same set) |
 | **d3c** | `d3.json` | `hard` | real boards, large (same set) |
 | **d2a** | [`experiments/kdd/configs/datasets/d2a.json`](../../experiments/kdd/configs/datasets/d2a.json) | `easy` | synth 2-layer v2 (D2-A in the paper) |

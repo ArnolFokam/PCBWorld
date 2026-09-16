@@ -118,7 +118,9 @@ def main() -> None:
         raise SystemExit("--train-only and --test-only are mutually exclusive")
 
     params = derive_params(args.grid)
-    repo_root = Path(__file__).resolve().parents[2]
+    # tools/datagen/synthetic_generator/<this file> -> parents[3] is the repo root
+    # (parents[2] is tools/, which put every dataset under tools/var/).
+    repo_root = Path(__file__).resolve().parents[3]
 
     prefix = args.out_prefix or (
         f"pcb_dataset_synthetic_{args.nets}net_{args.pins_per_net}pin_"

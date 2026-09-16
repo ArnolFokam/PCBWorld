@@ -1,167 +1,83 @@
 # `eval/` — KiCad PCB evaluation
 
-`eval.metrics.evaluate_one` is the canonical DRC scorer for routed
-`.kicad_pcb` files: it evaluates a routed board against the matching source
-`.kicad_pro` design rules and returns a metric dict. The central
-`eval.evaluator.Evaluator` orchestrates the two evaluation modes — rollout eval
-(`Evaluator.run`) and post-hoc board scoring (`Evaluator.score_boards`) — and
-both feed the same `eval.metrics.EvalSummary` summary into the sinks
-(logger / CSV / JSON). The staged command-line entry point is
-`python -m eval.pipeline`.
+`eval.metrics.evaluate_one` is the canonical DRC scorer for a routed `.kicad_pcb`: it scores the board against
+its source `.kicad_pro` design rules and returns a metric dict. `eval.evaluator.Evaluator` drives both evaluation
+modes — rollout eval (`Evaluator.run`) and post-hoc board scoring (`Evaluator.score_boards`) — feeding the same
+`eval.metrics.EvalSummary` into the sinks (logger / CSV / JSON). The staged CLI is `python -m eval.pipeline`, fronted
+by [scripts/eval.py](../scripts/eval.py); setup [docs/QUICKSTART.md](../docs/QUICKSTART.md), numbers [docs/METRICS.md](../docs/METRICS.md).
 
 ## Module map
 
 | File | Role |
 |---|---|
-| `metrics.py` (`evaluate_one`, `compute_metrics`, `compute_metrics_inline`) | Scoring kernel and metric source of truth for routed `.kicad_pcb` files. Use this when you want Rout., DRV, WL, Via, and `final_potential`. `compute_metrics_inline` is the non-destructive live-env entry (u_0 from the env's reset-time capture) that both branch wrappers expose as their `eval_inline_drc` `env_method` hook. Also defines `EvalSummary`, the sink-agnostic summary. |
-| `evaluator.py` (`Evaluator`) | Central evaluator: `Evaluator.run()` (rollout, mode A) and `Evaluator.score_boards()` (post-hoc board scoring, mode B). Plus the CSV/JSON sinks (`export_csv` / `export_json` / `emit_csv_artifacts`). |
-| `pipeline.py` (`main`, `eval_kicad_pcb`) | The `python -m eval.pipeline` CLI orchestration (3 stages) and the post-hoc DRC stage `eval_kicad_pcb()` that scores saved `.kicad_pcb` artifacts. |
-| `aggregation.py` (`aggregate_boards`) | Per-board / overall aggregation (Stage 3). |
-| `eval_utils.py` | Stdlib-only CSV / schema / metric flattening helpers. Also home to the runtime metric-semantics kernel: `runtime_metrics_from_info()` (+ `success_from` / `clean_pass_from`) is the single place where live-env per-rollout derivations (success, clean_pass, ratsnest_reduction, ...) are defined — every producer (RL rollout, LLM live/plan-only) calls it instead of computing its own. |
-| `rollout/` | Stage-1 rollout producers (see below). |
+| `metrics.py` | Scoring kernel and metric source of truth: `evaluate_one` / `compute_metrics` (disk board + `.pro`) and `compute_metrics_inline`, the non-destructive live-env entry (u₀ from the env's reset-time capture) that both branch wrappers expose as their `eval_inline_drc` `env_method` hook. Also defines `EvalSummary`, the sink-agnostic summary. |
+| `evaluator.py` | `Evaluator.run()` (rollout, mode A) · `Evaluator.score_boards()` (post-hoc, mode B) + the CSV/JSON sinks (`export_csv` / `export_json` / `emit_csv_artifacts`). |
+| `pipeline.py` | The `python -m eval.pipeline` 3-stage CLI (`main`) and the post-hoc DRC stage `eval_kicad_pcb()` over saved artifacts. |
+| `aggregation.py` | Stage 3: `aggregate_boards` (post-hoc, from `per_rollout.csv`) and `aggregate_inline` (in-memory, training validation). |
+| `eval_utils.py` | Stdlib-only CSV / schema / flattening helpers, plus the runtime metric-semantics kernel: `runtime_metrics_from_info()` (+ `success_from` / `clean_pass_from`) is the single definition of the live-env per-rollout derivations (success, clean_pass, ratsnest_reduction, …) — every producer calls it instead of computing its own. |
+| `args.py` | Shared argparse builders for the LLM-env eval entry points; the flag list derives from the config schema. |
+| `rollout/rl.py` | Stage-1 RL rollout **driver** (`eval_transformer`): packs `(board, rollout)` jobs into waves that fill all `n_envs` slots (`plan_job_schedule`, boards small-first to cut straggler wait), drives `methods/rl_agent/rollout/transformer.py`, flushes per-rollout rows. This is what the CLI injects into Stage 1. |
+| `rollout/rule_based.py` | Stage-1 rule-based router rollout (FreeRouting / KRT / OrthoRoute). |
 
-Support modules that used to live here (still used by the pipeline): board
-loaders (`BoardSpec`) → `methods/_shared/board_loader.py`, metric-logging
-sinks → `methods/_shared/logger.py`, checkpoint → policy/env-kwargs builders →
-`methods/rl_agent/models/loader.py`, the forkserver parallel DRC worker pool
-(`SubprocEvalPool`) → `pcb_world/vec/subproc_pool.py`.
+Same pipeline, other packages: LLM Stage-1 producers in `methods/llm_agent/rollout/`; board loaders (`BoardSpec`)
+in `methods/_shared/board_loader.py`; metric-logging sinks in `methods/_shared/logger.py`; policy/env-kwargs
+builders in `methods/rl_agent/models/loader.py`; the DRC worker pool (`SubprocEvalPool`) in `pcb_world/vec/subproc_pool.py`.
 
-### `rollout/` — Stage-1 rollout producers
+## Metric columns
 
-Each module produces routed boards plus canonical `per_rollout` rows that the
-shared scoring/aggregation layer consumes:
+Produced per routed board by `evaluate_one` / `compute_metrics`, written to `per_rollout.csv`:
 
-| File | Role |
+| metric | meaning |
 |---|---|
-| `rollout/rl.py` (`eval_transformer`) | RL decoder-policy rollout **driver** — packs `(board, rollout)` jobs into waves that fill all `n_envs` slots (`plan_job_schedule`, boards ordered small-first to cut straggler wait), drives the loop in `methods/rl_agent/rollout/transformer.py` (`_run_one_batch`; per-step transition = the shared primitive `methods/rl_agent/rollout/primitive.py`), flushes per-rollout rows. This is the rollout function the CLI injects into the rollout stage. |
-| `rollout/rule_based.py` | Rule-based router rollout (KRT / OrthoRoute; runs in the single `pcbworld` env). |
-| (LLM producers) | live in `methods/llm_agent/rollout/` — `pcbworld.py` (live vLLM / API rollout) and `plan_only.py` (API-sequence replay, no live LLM calls). |
+| `success` | every net's pads form one connectivity group — equivalent to an empty ratsnest when no dangling copper is present |
+| `routability` | `Σᵢ(Gᵢ(0) − Gᵢ(t)) / Σᵢ(Gᵢ(0) − 1)` over pad groups `Gᵢ` (connectivity clusters holding ≥1 pad): exactly 0 on the bare board, exactly 1 fully connected; dangling copper holds no pad so it cannot enter the metric, and a lower-bound violation raises instead of emitting a negative score. Filled by the DRC stage **only** — the rollout stage leaves the column NaN; the env-side per-step proxy is `ratsnest_reduction` (signed) |
+| `track_count`, `via_count`, `wirelength_mm` | engine reward snapshot (`run_drc=True`) |
+| `drv_errors_only_count` · `drv_errors_and_promoted_count` | ERROR-severity violations · ERROR + the 3 promoted warnings (codes 12/13/37, below) |
+| `drv_violations` | per-violation records: severity (int) + label, error_code, error_type, x_mm, y_mm, layer, net_names, `is_error`, `is_promoted` |
+| `final_potential` · `initial_potential` · `potential_gain` | Φ(routed) · Φ(bare board, all tracks/vias deleted) · their difference. Both ends score with `run_drc=True`, so the gain never mixes a DRC-free initial with a DRC-included final. Board-dependent Φ terms resolve through the training env's own [`PotentialReward.bind_board`](../pcb_world/core/reward.py) (per-reset group = the same bare-board pad groups as the routability baseline), so offline Φ == training Φ — pinned by [tests/test_reward_parity.py](../tests/test_reward_parity.py). `initial_potential` is `None` on the inline path |
+| `phi_components` · `phi_weights` | the five base Φ terms plus their `total` (penalties signed negative; ladder / clean-completion terms are **not** itemized, so `total` ≠ `final_potential` under ladder rules) · the reward config's weights as resolved on this board, enough to re-derive Φ |
+| `extras.per_net` · `extras.board_meta` | per-net wirelength / track / via / unrouted-edges · bbox, net count, copper layer count |
 
-## What it computes
-
-For every routed board (`evaluate_one` / `compute_metrics`):
-
-| metric | source |
-|---|---|
-| `success` | every net's pads form one connectivity group (`Gᵢ(t) == 1` for all nets) — equivalent to an empty ratsnest when no dangling copper is present |
-| `routability` | `Σᵢ(Gᵢ(0) − Gᵢ(t)) / Σᵢ(Gᵢ(0) − 1)` where `Gᵢ(s)` = pad groups on net i (connectivity clusters holding ≥1 pad, via `KiCadEngine.get_pad_groups()`). Initial board = exactly 0, fully connected = exactly 1; dangling copper holds no pad so it cannot enter the metric; a lower-bound violation (pads that started joined ending up split) raises instead of emitting a negative score. Baseline `Gᵢ(0)`: disk path = fully stripped board; inline path = the episode-reset capture (`env._initial_pad_groups`). Filled by the DRC eval stage **only** — the rollout stage leaves the column NaN; the env-side per-step proxy is `ratsnest_reduction` = `(u₀ − u_t) / u₀` (signed: negative when the board grew more islands than it closed connections) |
-| `track_count`, `via_count`, `wirelength_mm` | `KiCadEngine.get_reward_snapshot(run_drc=True)` |
-| `drv_errors_only_count` | DRC violations whose severity == ERROR |
-| `drv_errors_and_promoted_count` | ERROR + 3 promoted warnings (`DANGLING_VIA`/`DANGLING_TRACK`/`NET_CONFLICT`, codes 12/13/37) |
-| `drv_violations` | full per-violation list with severity, error_code, error_type, x_mm, y_mm, layer, net_names, `is_error`, `is_promoted` flags |
-| `final_potential` | `PotentialReward.compute_final(state)` — Φ(s) using the reward config (default `pcbworld_reward` — the shipped rule; the paper scored with `experiments/kdd/configs/reward/drc_dense_errors_only_eval` ⇒ `drc_severity_mode = errors_only`). Board-dependent terms (`completion_bonus_log_scale` · `clean_completion_bonus_log_scale` · `wirelength_bbox_normalize` · `net_bonus_size_log_scale`) are resolved by the training env's own definition, [`PotentialReward.bind_board`](../pcb_world/core/reward.py) (static group from the board meta, per-reset group from the same bare-board pad groups as the routability baseline) — offline Φ == training Φ, pinned by [tests/test_reward_parity.py](../tests/test_reward_parity.py) |
-| `initial_potential` | Φ of the *bare* board (all tracks/vias deleted), snapshot with `run_drc=True` — same DRC convention as `final_potential` so `potential_gain` does not mix a DRC-free initial with a DRC-included final. `None` on the inline path (`u₀` supplied) |
-| `potential_gain` | `final_potential − initial_potential` (`None` if no baseline) |
-| `phi_components` | breakdown of the five base Φ terms only: `completion_bonus`, `−unconnected`, `−drc`, `−wirelength`, `−via` — ladder / clean-completion terms are not itemized, so `total` ≠ `final_potential` under ladder rules |
-| `phi_weights` | the reward config's weights as resolved on this board (so you can re-derive Φ): `completion_bonus`, `clean_completion_bonus`, `net_completion_bonus`, `net_clean_bonus`, `net_bonus_size_log_scale`, `net_size_weights` (`{net_code: wᵢ}` for the size-weighted ladder, else `None`), `unconnected_penalty`, DRC shape/scales/severity, `wirelength_penalty` (post-normalization), `via_penalty`, `step_penalty` |
-| `extras.per_net` | per-net wirelength / track / via / unrouted-edges |
-| `extras.board_meta` | bbox, net count, copper layer count |
-
-The reward config controls how DRC is shaped (linear / saturating / `log_per_net`)
-and which severity is counted. The paper's `drc_dense_errors_only_eval` (now under `experiments/kdd/configs/reward/`) is the
-canonical eval setting (`drc_severity_mode = errors_only`, so `clean_pass`
-counts only true ERROR violations); pass `--reward-config <name>` to override
-(e.g. `drc_dense_promoted` ⇒ `errors_and_promoted`).
-
-## Required setup
-
-The C++ KiCad RL router must be built and the env vars set:
-
-```bash
-conda activate <your-pcbworld-env>
-cd <pcbworld-repo>
-export PYTHONPATH=build_rl/pcbnew/python/rl:.
-```
+Which violations count, and how the DRC term is shaped, is the reward config's business (`configs/reward/`, knob
+`drc_severity_mode`); `--reward-config NAME` scores under another rule, warning when it differs from the ckpt's own.
 
 ## Source `.pro` matching
 
-`evaluate_one(routed_pcb, pro_path)` takes the routed board and the path to its
-source `.kicad_pro` directly. When scoring through the pipeline (`--boards-dir`),
-the source `.pro` is resolved per board via `eval.eval_utils.resolve_pro_path`,
-which strips the rollout filename suffix
-(`<board_id>_<cell>_s<SS>_r<RR>.kicad_pcb`) to find the matching source design.
+`evaluate_one(routed_pcb, pro_path)` takes the project path directly; through the pipeline it is resolved per board
+by `eval.eval_utils.resolve_pro_path`, in order: the co-located `<stem>.kicad_pro`; for the cell grammar, the longest
+co-located `<board_id>.kicad_pro` whose stem prefixes the file; then, under `--boards-dir`, `<stem>.kicad_pro` with
+and without the staging suffix `_rollout_<idx>`.
 
 ## CLI — `python -m eval.pipeline`
 
-The pipeline runs up to three stages: **(1) rollout** a live policy over a board
-set, **(2) post-hoc DRC** scoring of the saved `.kicad_pcb` artifacts, and
-**(3) aggregate** per-board / overall metrics.
-
-### Full run (rollout + score + aggregate)
+Three stages: **(1) rollout** a live policy over a board set, **(2) post-hoc DRC** over the saved `.kicad_pcb` artifacts, **(3) aggregate**.
 
 ```bash
-python -m eval.pipeline \
-  --ckpt <path/to/checkpoint> \
-  --boards-dir <path/to/board/dir> \
-  --seed 42 \
-  --n-rollouts 5 \
-  --n-envs 1
+python -m eval.pipeline --ckpt <ckpt> --boards-dir <dir> --seed 42 --n-rollouts 5 --n-envs 1
+python -m eval.pipeline --skip-rollout --output-dir <rollout-dir> --stages eval,aggregate   # score + aggregate only
 ```
 
-`--ckpt`, one of `--boards-dir`/`--boards-list`, `--seed`, and `--n-rollouts`
-are all required unless `--skip-rollout` is set.
+Every flag is in `--help` and every default in the config schema; only these carry a constraint:
 
-### Stage selection
-
-```bash
-# only the post-hoc DRC + aggregate stages over an existing rollout dir
-python -m eval.pipeline --skip-rollout --output-dir <rollout-dir> \
-  --stages eval,aggregate
-```
-
-`--skip-rollout` requires `--output-dir` pointing at a directory that already
-contains a `per_rollout.csv` (or a `boards/` directory of routed
-`.kicad_pcb` files, from which the per-rollout rows are reconstructed). This is
-how rollouts produced by the LLM / rule-based `eval.rollout.*` modules are scored
-through the same path.
-
-### Useful flags
-
-| flag | meaning |
-|---|---|
-| `--ckpt PATH` | Policy checkpoint to roll out (Stage 1). Required unless `--skip-rollout`. |
-| `--boards-dir DIR` / `--boards-list FILE` | Board source for the rollout (mutually exclusive). |
-| `--seed N` | Base rollout seed. |
-| `--n-rollouts N` | Rollouts per board. |
-| `--n-envs N` | Number of envs (also the post-hoc DRC worker count). Default `1`. |
-| `--rollout-mode {serial,parallel}` | Default `serial` (requires `--n-envs 1`). |
-| `--inline-drc {on,off}` | `on` (serial only): score DRC inline on the live engine and skip Stage 2. `off` (default): score saved `.kicad_pcb` post-hoc in Stage 2. |
-| `--env-drc {on,off}` | Env DRC reward/tokens during rollout. Omitted: follow the ckpt's training `emit_drc_tokens`. |
-| `--reward-config NAME` | DRC scoring config (`configs/reward/`, then `experiments/kdd/configs/reward/`). Default `pcbworld_reward` (= the training rule); the paper used `drc_dense_errors_only_eval` (errors_only). e.g. `drc_dense_promoted` (errors_and_promoted). Warns when it differs from the ckpt's training `reward_rule`. |
-| `--check-angle {45,90}` | DRC track-angle check. Omitted: inherit the ckpt's `corner_mode`. |
-| `--selection-method {final_potential,posthoc_drc_aware,none}` | Per-board best-rollout selection. Default `final_potential`. |
-| `--save-artifacts {on,off}` | Save routed `.kicad_pcb` per rollout. Default `on` (required for post-hoc Stage 2). |
-| `--output-dir DIR` | Output root. Default `outputs/eval_overall/<ts>_<ckpt>_seed<seed>`. |
-| `--skip-rollout` / `--skip-drc` / `--skip-aggregate` | Skip individual stages. |
-| `--stages rollout,eval,aggregate` | Positive stage selector (aliases `drc`=eval, `agg`=aggregate); overrides the `--skip-*` flags. |
-| `--override-n-max-slots N` | Lift the ckpt's trained slot cap at inference. Default `1280`. |
-| `--dry-run` | Print the resolved plan and exit. |
+* `--ckpt`, one of `--boards-dir` / `--boards-list`, `--seed`, `--n-rollouts` — required unless `--skip-rollout`.
+* `--skip-rollout` needs `--output-dir` pointing at a dir that already holds a `per_rollout.csv` (or a `boards/`
+  dir of routed `.kicad_pcb` to reconstruct the rows from) — this is how the rule-based and LLM producers are
+  scored through the same path.
+* `--stages rollout,eval,aggregate` is the positive selector (aliases `drc`=eval, `agg`=aggregate); it overrides
+  `--skip-rollout` / `--skip-drc` / `--skip-aggregate`.
+* `--rollout-mode serial` requires `--n-envs 1`; `--n-envs` is also the Stage-2 DRC worker count.
+* `--inline-drc on` scores on the live engine and skips Stage 2 — serial only, and incompatible with `--skip-rollout`.
+* `--save-artifacts off` leaves nothing for Stage 2 to score.
+* `--env-drc` / `--check-angle`, when omitted, inherit the ckpt's `emit_drc_tokens` / `corner_mode`.
 
 ## Library API — post-hoc board scoring
 
-To score finished boards without the CLI, use either entry point:
-
 ```python
-# Pipeline function: scores a rollout dir's saved artifacts, merging DRC
-# metrics into its per_rollout.csv (the same Stage 2 the CLI runs).
-from eval.pipeline import eval_kicad_pcb
-eval_kicad_pcb(rollout_dir, n_workers=8, boards_dir=source_dir)
-
-# Evaluator: score an explicit list of (routed_pcb, pro_path) pairs into an
-# EvalSummary summary (parallel>1 uses SubprocEvalPool).
-from eval.evaluator import Evaluator
-metrics = Evaluator.score_boards(
-    [("board_00000_freerouting.kicad_pcb", "board_00000.kicad_pro"), ...],
-    parallel=8,
-)
+eval_kicad_pcb(rollout_dir, n_workers=8, boards_dir=src)           # eval.pipeline — Stage 2 over a rollout dir
+Evaluator.score_boards([(routed_pcb, pro_path), ...], parallel=8)  # eval.evaluator — pairs -> EvalSummary
+evaluate_one(routed_pcb, pro_path, reward_config_name="...")       # eval.metrics — one board, the kernel
 ```
-
-Or, for a single board, call the kernel directly:
-
-```python
-from eval.metrics import evaluate_one
-result = evaluate_one(routed_pcb, pro_path, reward_config_name="pcbworld_reward")
-```
+`eval_kicad_pcb` merges its DRC columns back into the dir's `per_rollout.csv`; `parallel>1` fans out over `SubprocEvalPool`.
 
 ## Output tree
 
@@ -172,50 +88,38 @@ A pipeline run writes into `--output-dir`:
 ├── boards/                    # routed rollouts, unified cell grammar (when --save-artifacts on):
 │                              #   <board_id>_<cell>_s<SS>_r<RR>.kicad_pcb (+ .kicad_pro/.kicad_prl)
 ├── per_rollout.csv            # one row per rollout, DRC columns filled by Stage 2
-├── per_board_avg.csv          # per-board aggregates (alias: per_board.csv)
+├── per_boards_ckpts.csv       # Stage 3: one row per board x ckpt seed
+├── per_boards_overall.csv     # Stage 3: one row per board
+├── per_boards_summary.csv     # Stage 3: one model-level row
 ├── manifest.json              # env_kwargs + resolved args
 └── eval_overall_summary.json  # overall summary + stage wall times
 ```
 
-With `--save-artifacts on`, Stage 1 saves each rollout under a temporary
-`artifacts/` staging dir and then flattens it into `boards/` under the unified
-cell grammar (`flatten_rollout_artifacts`; `<cell>` = the output dir basename,
-`s<SS>` = the ckpt's training seed), rewriting the `artifact_path` column to
-match. Stage 3 (`aggregate_boards`) parses exactly that grammar from
-`per_rollout.csv` and **fails loudly** (`SystemExit`) when no row matches it —
-it never exits 0 with nothing written.
-
-`per_rollout.csv` is flushed incrementally during the rollout and updated in
-place by the post-hoc DRC stage (keyed by the saved board filename, which is
-unique per rollout across ckpt seeds). Re-running with `--skip-rollout
---stages eval,aggregate` re-scores / re-aggregates an existing dir.
+Stage 1 saves each rollout under a temporary `artifacts/` staging dir, then flattens it into `boards/` under
+the cell grammar (`flatten_rollout_artifacts`; `<cell>` = the output dir basename, `s<SS>` = the ckpt's
+training seed), rewriting the `artifact_path` column to match. Stage 3 parses exactly that grammar from
+`per_rollout.csv` and **fails loudly** (`SystemExit`) when no row matches — it never exits 0 with nothing written.
+`per_rollout.csv` is flushed incrementally during the rollout and updated in place by the post-hoc DRC stage,
+keyed by the saved board filename (unique per rollout across ckpt seeds).
 
 ## Reading the DRV breakdown
 
-`drv_breakdown.errors_only_by_type` and `drv_breakdown.errors_and_promoted_by_type`
-each list `{severity, error_code, error_type, count}` rows. KiCad error_code
-mapping for the 3 promoted warnings:
+`drv_breakdown.errors_only_by_type` and `drv_breakdown.errors_and_promoted_by_type` each list
+`{severity, error_code, error_type, count}` rows, where `severity` is the human label (`ERROR` / `WARNING`)
+and the integer KiCad value stays in `drv_violations[i].severity`. The 3 promoted warnings:
 
 | code | error_type | meaning |
 |---|---|---|
 | 12 | via_dangling | a via with no track ending on either copper layer |
 | 13 | track_dangling | a track segment with one end floating |
-| 37 | net_conflict | a track/via assigned to a net that disagrees with the connectivity (potential short) |
-
-`severity` is the human label (`ERROR` / `WARNING`); the integer KiCad value is
-also kept in `drv_violations[i].severity`.
+| 37 | net_conflict | a track/via on a net that disagrees with the connectivity (potential short) |
 
 ## Caveats
 
-* **Pro file matters.** Without a source `.pro`, the engine falls back to KiCad's
-  compile-time default rules (more permissive); `Track width` / `Via diameter`
-  / `Hole size` violations may be undercounted. Always supply the source pro
-  (`--boards-dir` resolves it per board; the library API takes it explicitly).
-* **Singleton C++ engine.** Only one `RLRouter` instance can live at a time
-  within a process, so serial scoring is sequential. Parallel scoring fans out
-  across `forkserver` subprocesses via `SubprocEvalPool` (`--n-envs N` /
-  `parallel=N`), each its own process.
-* **`final_potential` ≠ training reward at convergence.** The training reward
-  is the per-step potential delta plus step penalty, not Φ itself. Φ is what
-  `info["final_potential"]` exposes at episode termination — i.e. the score of
-  a finished board under the reward config's weights.
+* **The source `.pro` is mandatory.** Without it the rules would fall back to KiCad's compile-time defaults
+  (more permissive — `Track width` / `Via diameter` / `Hole size` undercounted), so `KiCadEngine` raises
+  `RuntimeError` instead of scoring.
+* **Singleton C++ engine.** One `RLRouter` per process, so serial scoring is sequential; parallel scoring
+  fans out across `forkserver` subprocesses (`SubprocEvalPool`, `--n-envs N` / `parallel=N`).
+* **`final_potential` ≠ the training reward at convergence.** The training reward is the per-step potential
+  delta plus step penalty, not Φ itself; `final_potential` is Φ of the finished board under the config's weights.

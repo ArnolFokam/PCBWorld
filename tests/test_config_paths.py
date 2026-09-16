@@ -124,7 +124,7 @@ def test_real_paths_yaml_has_no_baked_in_data_root(monkeypatch, tmp_path):
     # fails loudly naming the variable; with it set, every registered sub resolves under it.
     monkeypatch.delenv("PCBWORLD_DATA_ROOT", raising=False)
     # A staged local copy (var/datasets/<sub>) is served without the data root — the
-    # README's trial set lives exactly there — so point the staged root at an empty dir.
+    # quick start's synthetic set lives exactly there — so point the staged root at an empty dir.
     monkeypatch.setenv("PCBWORLD_STAGED_ROOT", str(tmp_path / "staged"))
     cfg = paths_mod.load_paths()
     assert cfg.data is None

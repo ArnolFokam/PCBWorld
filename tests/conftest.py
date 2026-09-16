@@ -46,8 +46,6 @@ if "KICAD_CRASH_LOG_DIR" not in os.environ:
 #   tests/durations.json  — tracked seed, so fresh clones order well from run 1.
 #                           Refresh with `pytest <paths> --update-durations`
 #                           (merges just the files that ran; prunes deleted ones).
-#                           check_docs.py fails on missing/stale entries, so new
-#                           test files get an entry before push.
 #   pytest cache          — this host's latest measurements, recorded every run.
 # Workers read the same sources at collection, so xdist sees identical orderings.
 _FILE_DURATIONS_KEY = "pcbworld/file_durations"
@@ -159,17 +157,18 @@ def pytest_unconfigure(config):
 
 
 _project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-# The engine build the tests import: the same knob the IPC client passes to its server (side builds such as build_rl_outline)
-_rl_lib_path = os.path.join(os.environ.get("PCBWORLD_KICAD_RL_BUILD_DIR") or os.path.join(_project_root, "build_rl"), "pcbnew", "python", "rl")
-
-if _rl_lib_path not in sys.path:
-    sys.path.insert(0, _rl_lib_path)
 _test_dir = os.path.dirname(os.path.abspath(__file__))
 
 if _project_root not in sys.path:
     sys.path.insert(0, _project_root)
 if _test_dir not in sys.path:
     sys.path.insert(0, _test_dir)
+
+# The engine build the tests import: the ONE resolver the runtime uses (explicit variable, this
+# tree's build_rl, else a discovered build of this tree's C++) — it puts the lib dir on sys.path.
+from pcb_world.engine import router_lib_dir  # noqa: E402  (after sys.path above)
+
+router_lib_dir()
 
 
 @pytest.fixture

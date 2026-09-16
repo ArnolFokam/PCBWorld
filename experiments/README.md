@@ -37,7 +37,7 @@ experiments/
 
 | item | train | eval | figure |
 | --- | --- | --- | --- |
-| Fig5 / Fig6c (D1 grid) — **corpus not distributed**, see [kdd/figure5_d1/README.md](kdd/figure5_d1/README.md) | `kdd/figure5_d1/run.sh train [transformer\|jumanji\|sable]` (or `train.py d1-ppo`) | `kdd/figure5_d1/run.sh eval` (eval/pipeline.py, `--check-angle 90`) | `draw_figure.py --figure fig6c` |
+| Fig5 / Fig6c (D1 grid) — **paper corpus not distributed**; generate a D1-shaped one first, see [kdd/figure5_d1/README.md](kdd/figure5_d1/README.md) | `kdd/figure5_d1/run.sh train [transformer\|jumanji\|sable]` (or `train.py d1-ppo`) | `kdd/figure5_d1/run.sh eval` (eval/pipeline.py, `--check-angle 90`) | `draw_figure.py --figure fig6c` |
 | Fig6 / Fig8 (reward) | `kdd/figure6_reward/run.sh train` (or `train.py reward`) | shared cell path | `draw_figure.py --figure fig8` |
 | Tables 3/22/24/25 (RL) | `kdd/table1_rl/run.sh train` (or `train.py table1 --method …`) | `eval/pipeline.py` (rollout → `--stages eval,aggregate --check-angle 45`) | `draw_figure.py --figure table3\|table22\|table24_25` |
 | Table1(b)/Fig9 (LLM) | — | `kdd/table1_llm/run.sh`, `kdd/table1_llm/baselines/*.sh` | `draw_figure.py --figure fig9` |
@@ -61,11 +61,13 @@ not run.
   eval-level bar chart.
   `python experiments/kdd/table2/plot_gpt_levels.py --metrics-csv <csv>`
 
-## D1 (Fig5 / Fig6c) is not reproducible here
+## D1 (Fig5 / Fig6c): the protocol runs, the published numbers do not
 
-The D1 corpus is not distributed with this repository and no generator here
-reproduces it, so every script under `kdd/figure5_d1/` refuses up front with a
-notice naming the paths it wanted. On top of that,
+The paper's D1 corpus is not distributed with this repository. A D1-shaped one
+is generatable — `bash tools/datagen/synthetic_generator/make_grid_dataset.sh <G>`,
+which `kdd/figure5_d1/` defaults to and names in its preflight notice — but it is
+10 nets × 2 pins with unpinned seeds, not the paper's 5-net boards, so the
+PCBWorld row reproduces the scalability protocol, not the published values. On top of that,
 `kdd/figure5_d1/train_jumanji_a2c.sh` · `train_sable.sh` invoke external runner
 scripts (run_v56_jumanji_a2c / run_v56_mava_sable + their connector), which are
 not part of this tree — so retraining those two baselines is not supported here

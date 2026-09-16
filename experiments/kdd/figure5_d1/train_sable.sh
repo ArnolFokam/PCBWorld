@@ -49,9 +49,20 @@ if [[ "$SMOKE" == "1" ]]; then
   NUM_EVAL=1
 fi
 
+# SABLE runs are a record, not something this tree can launch: refuse before
+# assembling a command line whose entrypoint is absent by design.
+if [[ ! -f "$PCBWORLD_REPO_ROOT/scripts/run_v56_mava_sable.py" ]]; then
+  {
+    printf '[d1] the SABLE runner scripts/run_v56_mava_sable.py is not part of this repository,\n'
+    printf '[d1]   and jax and Mava are outside environment.yml, so retraining this baseline is not supported here.\n'
+    printf '[d1]   Fig5/6c takes this row from checkpoints — the eval stage needs no runner.\n'
+    printf '[d1]   Details: experiments/kdd/figure5_d1/README.md\n'
+  } >&2
+  exit 2
+fi
+
 cmd=(
-  # TODO(Phase 2): scripts/run_v56_mava_sable.py + scripts/v56_connector_fixed.py were
-  # pruned from this branch; restore from `develop` (see experiments/README.md) before a real run.
+  # Not in this tree — the guard above says why.
   "$PY" scripts/run_v56_mava_sable.py
   --train-npz "$TRAIN_NPZ"
   --eval-npz "$EVAL_NPZ"

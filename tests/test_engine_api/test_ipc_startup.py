@@ -61,7 +61,8 @@ _SLOW_LISTEN_SERVER = textwrap.dedent("""
 
 def _spawn_slow_listen_server(sock_path: str, delay_s: float, crashlog_dir: str):
     env = dict(os.environ)
-    env.setdefault("PCBWORLD_KICAD_RL_BUILD_DIR", os.path.join(_REPO_ROOT, "build_rl"))
+    from pcb_world.engine import router_build_dir   # explicit env var, else this tree's / resolved build
+    env.setdefault("PCBWORLD_KICAD_RL_BUILD_DIR", router_build_dir())
     env["KICAD_CRASH_LOG_DIR"] = crashlog_dir
     code = _SLOW_LISTEN_SERVER.format(
         server_dir=os.path.dirname(_SERVER_SCRIPT), delay=delay_s, sock_path=sock_path)
@@ -120,7 +121,8 @@ _DYING_SPAWNER = textwrap.dedent("""
 
 def _server_env(crashlog_dir: str) -> dict:
     env = dict(os.environ)
-    env.setdefault("PCBWORLD_KICAD_RL_BUILD_DIR", os.path.join(_REPO_ROOT, "build_rl"))
+    from pcb_world.engine import router_build_dir   # explicit env var, else this tree's / resolved build
+    env.setdefault("PCBWORLD_KICAD_RL_BUILD_DIR", router_build_dir())
     env["KICAD_CRASH_LOG_DIR"] = crashlog_dir
     return env
 

@@ -9,8 +9,10 @@
 #
 # Honors DRY_RUN=1 / SMOKE=1 / GPU=N and the L1_GRIDS / SEEDS overrides.
 #
-# The D1 corpus is not distributed with this repository, so every stage checks
-# its inputs first and exits 2 with a notice when they are absent
+# The D1 corpus is not distributed with this repository. Every stage checks its
+# inputs first and, when they are absent, exits 2 with a notice naming the
+# generator command that builds a D1-shaped corpus (cases.sh `d1_preflight`);
+# BOARDS_DIR / CKPT / --split-json point a stage at the paper corpus instead
 # (experiments/kdd/figure5_d1/README.md).
 set -euo pipefail
 _self="$(cd "$(dirname "$0")" && pwd)"
@@ -47,7 +49,7 @@ eval_t1() {
   local ran=0
   for grid in $GRIDS; do for seed in $SEEDS; do
     local ckpt="${CKPT:-$CKPT_ROOT/Transformer_1L/grid${grid}/seed${seed}/policy_best.pt}"
-    local boards="${BOARDS_DIR:-$DATASET_ROOT/synthetic/synth_1L/grid${grid}_5net_v15/test}"
+    local boards="${BOARDS_DIR:-$(d1_generated_boards_dir "$grid")}"
     local out="$LOCAL_OUT/rollouts/d1_grid/transformer_ppo/grid${grid}_seed${seed}"
     local skip=0
     [[ -f "$ckpt" ]]   || { d1_absent "D1 checkpoint (grid ${grid}, seed ${seed})" "$ckpt"; skip=1; }

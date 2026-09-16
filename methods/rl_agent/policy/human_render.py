@@ -69,38 +69,6 @@ def _cand_name(ct: int) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Action renderer
-# ---------------------------------------------------------------------------
-
-def render_action_human(
-    action_type: int,
-    pointer_idx: int,
-    routing_mode: int,
-    cand_mm: list[tuple[float, float, int]],
-) -> str:
-    """Format a single policy action for the history pane.
-
-    ``cand_mm[k] = (x_mm, y_mm, layer)`` is the physical resolution of
-    ``pointer_idx = k`` — same ordering the tokenizer used to embed the
-    CAND tokens, so the printout matches what
-    :func:`render_obs_human` showed.
-    """
-    if 0 <= action_type < len(ACTION_NAMES):
-        name = ACTION_NAMES[action_type]
-    else:
-        name = f"?action_type={action_type}"
-    if pointer_idx < 0:
-        ptr = "(no pointer)"
-    elif pointer_idx < len(cand_mm):
-        x, y, ly = cand_mm[pointer_idx]
-        ptr = f"CAND[{pointer_idx}] → ({x:.2f},{y:.2f})mm L{ly}"
-    else:
-        ptr = f"CAND[{pointer_idx}] (out of range; {len(cand_mm)} cands)"
-    mode = _mode_name(routing_mode)
-    return f"{name}  {ptr}  mode={mode}"
-
-
-# ---------------------------------------------------------------------------
 # Observation renderer
 # ---------------------------------------------------------------------------
 
@@ -401,6 +369,10 @@ def _format_action_token_ids(
         f"routing_mode={_mode_name(rm)}"
     )
 
+
+# ---------------------------------------------------------------------------
+# Action renderer
+# ---------------------------------------------------------------------------
 
 def render_action_human(
     action_type: int,

@@ -7,7 +7,8 @@
 #   pcb_dataset_synthetic_10net_2pin_1layer_grid<N>/         train, .pcb + .pro
 #   pcb_dataset_synthetic_10net_2pin_1layer_grid<N>_test/    test,  .pcb + .pro
 #   pcb_dataset_synthetic_10net_2pin_1layer_grid<N>_val/     val,   .pcb + .pro
-#   pcb_dataset_10net_2pin_1layer_grid<N>_combined_v2/       symlinks: board_/testboard_/valboard_
+#   var/datasets/synthetic/pcb_dataset_10net_2pin_1layer_grid<N>_combined_v2/
+#                                                            symlinks: board_/testboard_/valboard_
 #   experiments/kdd/configs/datasets/grids/10net_2pin_1layer_grid<N>_v2.json         {"easy": {train, test, val}}
 #
 # Seeds (mirror the grid1000 convention):
@@ -34,7 +35,7 @@ PREFIX="var/datasets/synthetic/pcb_dataset_synthetic_10net_2pin_1layer_grid${GRI
 TRAIN_DIR="$PREFIX"
 TEST_DIR="${PREFIX}_test"
 VAL_DIR="${PREFIX}_val"
-COMBINED="pcb_dataset_10net_2pin_1layer_grid${GRID}_combined_v2"
+COMBINED="var/datasets/synthetic/pcb_dataset_10net_2pin_1layer_grid${GRID}_combined_v2"
 SPLIT_JSON="experiments/kdd/configs/datasets/grids/10net_2pin_1layer_grid${GRID}_v2.json"
 
 echo "=== make_grid_dataset grid=${GRID} ==="
@@ -124,7 +125,13 @@ for f in sorted(VAL.glob("board_*.kicad_pcb"), key=lambda p: int(p.stem.split("_
     link_pair(f, DST / f"{bid}.kicad_pcb")
     val_ids.append(bid)
 
-split = {"easy": {"train": train_ids, "test": test_ids, "val": val_ids}}
+# dataset_dirs is what methods/_shared/board_loader.py resolves board ids
+# against - without it the split is unusable outside the dir that made it.
+# (No backticks in this heredoc: it is unquoted, so bash would run them.)
+split = {
+    "easy": {"train": train_ids, "test": test_ids, "val": val_ids},
+    "dataset_dirs": {s: str(DST) for s in ("train", "val", "test")},
+}
 SPLIT.write_text(json.dumps(split, indent=2))
 
 print(f"[combined] {len(train_ids)} train + {len(test_ids)} test + {len(val_ids)} val "

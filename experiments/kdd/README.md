@@ -7,9 +7,9 @@ what it needs, and where the paper's configuration lives. Mechanics of the share
 
 ## Prerequisites
 
-1. The conda env and a built engine — root README, *Installation*.
-2. `PCBWORLD_DATA_ROOT` set; the synthetic 2-layer boards (root README Quick start §2) and the
-   D3 real boards (§3, the PCBench rebuild chain). Every `run.sh` sources
+1. The conda env and a built engine — root README, Quick start *Setup*.
+2. `PCBWORLD_DATA_ROOT` set; the synthetic 2-layer boards (`tools/quickstart/train_rl.sh` generates them; `--paper`
+   for the paper-scale set) and the D3 real boards (`tools/quickstart/prepare_pcbench.sh`, the PCBench rebuild chain). Every `run.sh` sources
    `experiments/_lib/env.sh`, which resolves dataset and output paths through `configs/paths.yaml`.
 3. LLM rows need an API key (`OPENAI_API_KEY` / `ANTHROPIC_API_KEY` / `GOOGLE_API_KEY`, or an
    OpenAI-compatible endpoint via `OPENAI_BASE_URL`); model aliases are in

@@ -42,8 +42,8 @@ in-repo `var/` trees this reproduction reads and writes. `PCBWORLD_DATA_ROOT` (u
 throughout [README.md](../README.md) and resolved by `configs/loader/paths.py`) is a
 different thing: it points at the **read-only dataset corpus** — your own copy of the
 synthetic and PCBench board sets, laid out with the `sub` paths in
-`configs/paths.yaml` (README §2 generates the synthetic sets; README §3 rebuilds the
-PCBench D3 set from a public clone with `tools/datagen/pcbench_prep/`). Python code that resolves a logical dataset name (`d2a`,
+`configs/paths.yaml` (`tools/quickstart/train_rl.sh` generates the synthetic set; `tools/quickstart/prepare_pcbench.sh`
+rebuilds the PCBench D3 set from a public clone with `tools/datagen/pcbench_prep/`). Python code that resolves a logical dataset name (`d2a`,
 `synth_2L_v2`, …) goes through `PCBWORLD_DATA_ROOT`; the shell dispatch scripts pass
 explicit directories built from `DATASET_ROOT`. Point `DATASET_ROOT` at
 `$PCBWORLD_DATA_ROOT` when the two trees are the same copy:
@@ -211,12 +211,15 @@ python experiments/train.py d1-ppo --grid-size 100 --seed 42
   `--split-json <file>` — a board listed there but missing on disk is warned about and
   skipped, so a partial set trains on what exists instead of crashing mid-run.
 
-> **D1 (Figure 5) is not reproducible from this repository.** Its corpus is not
-> distributed here and the `d1-jumanji`/`d1-sable` runners are not part of this
-> tree, so the `kdd/figure5_d1/` train/eval entrypoints exit 2 with a notice naming
-> what they need. `run.sh figure` is the exception: it runs (exit 0) and renders the
-> figure with `(absent/OOM)` placeholders —
-> see [experiments/kdd/figure5_d1/README.md](../experiments/kdd/figure5_d1/README.md).
+> **D1 (Figure 5): the paper's numbers are not reproducible from this repository.**
+> Its corpus is not distributed here and the `d1-jumanji`/`d1-sable` runners are not
+> part of this tree. The PCBWorld row's protocol does run on a locally generated,
+> D1-shaped corpus: `bash tools/datagen/synthetic_generator/make_grid_dataset.sh <G>`,
+> then `run.sh train transformer` / `run.sh eval`, which default to what it writes.
+> Until those inputs exist the train/eval entrypoints exit 2 with a notice naming that
+> command; `run.sh figure` is the exception: it runs (exit 0) and renders the figure with
+> `(absent/OOM)` placeholders — see
+> [experiments/kdd/figure5_d1/README.md](../experiments/kdd/figure5_d1/README.md).
 
 **Figures/tables — `draw_figure.py`** (read-only; writes to `var/results/kdd/paper_outputs/`):
 

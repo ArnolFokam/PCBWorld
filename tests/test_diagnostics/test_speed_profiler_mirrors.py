@@ -4,8 +4,7 @@ The mirrors in hooks.py/worker_shim.py are copies of the base control flow with
 timers added, so a change to a base would leave the profiler measuring a stale
 path. The base source digests pinned in mirror_contract.BASES are compared against
 the current sources, so drift fails loudly. (No C++ router or torch needed — the
-digest is a static AST extraction using only the stdlib. The same check is enforced
-pre-push through tools/docs/check_docs.py `mirror-sync`.)
+digest is a static AST extraction using only the stdlib.)
 """
 
 

@@ -256,7 +256,7 @@ class KiCadEngine:
         seed = -1 if engine_seed is None or int(engine_seed) < 0 else (int(engine_seed) & 0x7FFFFFFF)
 
         if ipc_enabled():
-            # GPL/NC boundary (default): the GPL shared library loads only in
+            # GPL/BSD-3 boundary (default): the GPL shared library loads only in
             # the engine-server child; this process talks plain data over a
             # unix socket. See router_client / engine/engine_server. The
             # server opens the source file under the same strict load contract
@@ -269,6 +269,8 @@ class KiCadEngine:
             # Explicit in-process escape hatch (KICAD_ENGINE_IPC=0):
             # debugging/benchmark only — this loads the GPL .so into the
             # current process.
+            from pcb_world.engine import ensure_router_provenance
+            ensure_router_provenance()     # also puts the resolved lib dir on sys.path
             import kicad_rl_router as krl
             from pcb_world.engine.utils import apply_thread_pool_cap
 
@@ -317,7 +319,7 @@ class KiCadEngine:
             from pcb_world.engine.outline_simplify import apply_graphics_simplify
             # IPC mode: pass the layer ids from the handshake constants —
             # letting apply_graphics_simplify default them would import
-            # kicad_rl_router into this (NC) process.
+            # kicad_rl_router into this (environment-side, BSD-3) process.
             layers = None
             consts = getattr(self._r, "constants", None)
             if consts is not None:
@@ -737,7 +739,8 @@ class KiCadEngine:
 
     def run_drc_incremental(self, rules_path: str = "") -> list:
         """Same result as run_drc() but rechecks only clearance for tracks/vias
-        changed since the last DRC (full fallback on first call / zoned boards)."""
+        changed since the last DRC (full fallback on the first call or when the
+        rules file changed; zones are handled incrementally)."""
         self.drc_helper.clear()
         violations = self._r.run_drc_incremental(rules_path)
         self.drc_helper.update(violations)

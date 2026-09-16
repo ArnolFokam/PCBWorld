@@ -390,7 +390,7 @@ class RLPolicyProvider:
                 cand_mm=cand_mm,
                 sorted_net_codes=sorted_codes,
                 policy_net_select=bool(
-                    self._train_args.get("policy_net_select", True)
+                    self._train_args.get("policy_net_select", False)
                 ),
                 human_text=human_text,
             )

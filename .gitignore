@@ -9,8 +9,6 @@
 # new files under a tracked directory then never show up in `git status`/`git add` (it hid the
 # private mirrors of experiments/ and configs/datasets/). Only true artifacts that are never
 # source anywhere (__pycache__/, *.pyc, wandb/, CMakeFiles/, editor/OS droppings) stay unanchored.
-# tools/docs/check_docs.py `gitignore-traps` fails when any tracked directory would swallow a new file;
-# `tracked-ignored` fails when a tracked path matches an ignore rule or is a symlink (the reverse leak).
 
 /examples
 

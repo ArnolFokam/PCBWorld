@@ -403,3 +403,35 @@ def test_keep_fraction_conflicts_rejected(routed_board):
     with pytest.raises(ValueError):
         env.set_target_nets({1})
     env.close()
+
+
+def test_board_reload_keeps_the_drc_net_filter():
+    """A reloaded board stays target-scoped for DRC, not just for the counts.
+
+    ``_reload_board_from_file`` (how an episode goes back to the file's routing)
+    builds a FRESH engine, hence a fresh ``DRCUtils``. Replaying only the
+    engine's unrouted scope left the new cache unfiltered, so the first episode
+    was scored on the subset and every later one whole-board — two arms of the
+    same comparison reporting different Phi/DRV for the same board.
+    """
+    env = PCBWorld(board_path=BOARD, target_nets={NET1})
+    try:
+        installed = env._engine.drc_helper._target_net_names
+        assert installed, "a net-subset env must install the DRC name filter"
+        env.reset(seed=0)
+        env._reload_board_from_file()
+        assert env._engine.drc_helper._target_net_names == installed
+    finally:
+        env.close()
+
+
+def test_board_reload_leaves_a_whole_board_env_unfiltered():
+    """The whole-board path keeps its ``None`` filter across a reload."""
+    env = PCBWorld(board_path=BOARD)
+    try:
+        assert env._engine.drc_helper._target_net_names is None
+        env.reset(seed=0)
+        env._reload_board_from_file()
+        assert env._engine.drc_helper._target_net_names is None
+    finally:
+        env.close()

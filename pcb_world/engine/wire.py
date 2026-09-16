@@ -255,7 +255,7 @@ KRL_FIELDS: dict[str, tuple] = {
 }
 
 # Module-level constants of kicad_rl_router snapshotted into the handshake
-# (the NC client never imports the module, so these come over the wire).
+# (the BSD-3 client never imports the module, so these come over the wire).
 KRL_CONSTANT_NAMES = (
     "LAYER_EDGE_CUTS", "LAYER_MARGIN",
     "MODE_MARK_OBSTACLES", "MODE_SHOVE", "MODE_WALKAROUND",

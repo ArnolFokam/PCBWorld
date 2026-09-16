@@ -13,7 +13,6 @@ submodule init and the pinned baseline downloads in one pass.
 
 | Entry | Kind | Upstream |
 |---|---|---|
-| `RAGEN/` | submodule (has nested submodules) | https://github.com/mll-lab-nu/RAGEN.git |
 | `verl-agent/` | submodule | https://github.com/langfengQ/verl-agent.git |
 | `OrthoRoute/` | submodule | https://github.com/bbenchoff/OrthoRoute.git |
 | `KiCadRoutingTools/` | cloned at a pinned commit by `fetch_baselines.sh` (gitignored) | https://github.com/drandyhaas/KiCadRoutingTools |
@@ -30,26 +29,14 @@ the upstream file, it is not a `git apply` patch series; `__pycache__` and
 relative to itself.
 
 ```bash
-bash external/patcher.sh ragen        # RAGEN-patch/      -> RAGEN/
 bash external/patcher.sh verl-agent   # verl-agent-patch/ -> verl-agent/
-bash external/patcher.sh all          # both
+bash external/patcher.sh all          # every overlay
 ```
 
 **Initialise the submodule first.** The script refuses to run when the target is
 not a checkout — a fresh clone leaves an *empty* directory at each submodule
 mount point, and copying into it makes the later `git submodule update --init`
 fail on untracked files. Re-run the patcher after updating a submodule.
-
-### `RAGEN-patch/` file list
-
-The RAGEN overlay is small: it does not add the PCBWorld env to RAGEN. It backports
-LoRA support for the fsdp2 critic and records the matching config knob.
-
-| File | Purpose |
-|---|---|
-| `config/base.yaml` | upstream training config plus the commented `exclude_modules` LoRA knob |
-| `config/eval.yaml` | the same one-line addition to the eval config |
-| `ragen/workers/fsdp_workers.py` | adds `build_peft_model` (LoRA via `LoraConfig`, incl. the critic value head) and the `get_shard_placement_fn` import it needs |
 
 ### `verl-agent-patch/` file list
 
@@ -65,80 +52,6 @@ LoRA support for the fsdp2 critic and records the matching config knob.
 | `verl/trainer/ppo/metric_utils.py` | metric plumbing |
 | `verl/trainer/ppo/ray_trainer.py` | Ray trainer adaptation |
 | `verl/workers/rollout/vllm_rollout/vllm_rollout_spmd.py` | vLLM rollout adaptation |
-
----
-
-## RAGEN
-
-Upstream docs: [RAGEN/README.md](RAGEN/README.md) (present once the submodule is
-checked out — the directory is empty in a fresh clone)
-
-**RAGEN** (Reasoning AGENT) is a reinforcement-learning framework for training
-multi-turn reasoning agents. It is built around the StarPO
-(State-Thinking-Actions-Reward Policy Optimization) algorithm and ships ten
-built-in environments behind a gym-compatible interface.
-
-### Setup
-
-RAGEN carries its own submodules — `verl` above all, which its code imports — so
-this one needs `--recursive`. It also has its own installer, `scripts/setup_ragen.sh`
-(see its README); the patcher only overlays our files on top of the checkout.
-
-```bash
-git submodule update --init --recursive external/RAGEN
-bash external/patcher.sh ragen
-```
-
-### Basic usage
-
-Upstream's own examples, run from the `external/RAGEN` directory — RAGEN drives
-its built-in environments, not the PCBWorld env (that integration is
-verl-agent's, below):
-
-```bash
-# training (no rollout filter — the default)
-python train.py --config-name _2_sokoban
-
-# training with SNR-adaptive filtering
-python train.py --config-name _2_sokoban \
-  actor_rollout_ref.rollout.rollout_filter_strategy=top_p \
-  actor_rollout_ref.rollout.rollout_filter_value=0.9
-
-# evaluation
-python -m ragen.llm_agent.agent_proxy --config-name _2_sokoban
-```
-
-> Both filter keys live under `actor_rollout_ref.rollout` (`config/base.yaml`);
-> upstream's README drops the `.rollout` from the first one, which Hydra rejects.
-
-### Troubleshooting
-
-**No CUDA toolkit, or `CUDA_HOME` unset.** Use this when CUDA is not installed
-system-wide and you manage it inside the conda environment instead:
-
-```bash
-conda install -c nvidia/label/cuda-12.4.0 cuda-toolkit -y
-
-mkdir -p $CONDA_PREFIX/etc/conda/activate.d
-cat >> $CONDA_PREFIX/etc/conda/activate.d/cuda_env.sh << 'EOF'
-export CUDA_HOME=$CONDA_PREFIX
-export PATH=$CONDA_PREFIX/bin:$PATH
-export LD_LIBRARY_PATH=$CONDA_PREFIX/lib:$LD_LIBRARY_PATH
-EOF
-```
-
-**`lib64` symlink error.** A conda-installed CUDA puts its libraries in `lib/`,
-but RAGEN looks for `lib64/`:
-
-```bash
-ln -s $CONDA_PREFIX/lib $CONDA_PREFIX/lib64
-```
-
-**FlashInfer cache error.** Clear the cache and re-run:
-
-```bash
-rm -rf ~/.cache/flashinfer/
-```
 
 ---
 

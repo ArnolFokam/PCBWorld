@@ -10,7 +10,7 @@ Modules
 -------
 args            argparse builders for the LLM-env eval.
 eval_utils      Stdlib-only CSV / schema / metric helpers.
-metrics         Scoring kernel: compute_metrics / evaluate_one / aggregate
+metrics         Scoring kernel: compute_metrics / evaluate_one
                 + EvalResult + EvalSummary (sink-agnostic summary).
 evaluator       Central Evaluator (run / score_boards) + CSV/JSON export sinks
                 (export_csv / export_json / emit_csv_artifacts).

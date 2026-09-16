@@ -26,7 +26,9 @@ from pathlib import Path
 import pytest
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-RL_MODULE_DIR = PROJECT_ROOT / "build_rl" / "pcbnew" / "python" / "rl"
+from pcb_world.engine import router_lib_dir
+
+RL_MODULE_DIR = Path(router_lib_dir())     # the build this tree loads — a worktree resolves it elsewhere
 BOARD = PROJECT_ROOT / "tests" / "fixtures" / "simple_obstacle_board.kicad_pcb"
 
 # Worker: seed the KIID generator, route a fixed multi-segment path (several

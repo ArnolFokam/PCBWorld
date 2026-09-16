@@ -54,12 +54,19 @@ if [[ -z "$SPLIT_JSON" ]]; then
     seed_idx=0
   fi
   printf -v seed_ver '%02d' "$seed_idx"
+  # 1) the paper's per-seed split, when a staged DATASET_ROOT carries it
   SPLIT_PATTERN="${DATASET_ROOT}/synthetic/splits/synth_1L_grid${GRID_SIZE}_*v${seed_ver}_local.json"
   SPLIT_JSON="$(find "${DATASET_ROOT}/synthetic/splits" \
     -name "synth_1L_grid${GRID_SIZE}_*v${seed_ver}_local.json" 2>/dev/null | sort | head -n1 || true)"
+  # 2) otherwise the split `make_grid_dataset.sh <G>` writes (one per grid, all
+  #    seeds share it — the seed varies the run, not the split)
+  if [[ -z "$SPLIT_JSON" ]]; then
+    SPLIT_JSON="$(d1_generated_split_json "$GRID_SIZE")"
+    SPLIT_PATTERN="${SPLIT_PATTERN} | $SPLIT_JSON"
+  fi
 fi
-# Preflight: the D1 split JSON follows the gitignored `_local` naming convention
-# and is not distributed here.
+# Preflight: neither the paper's `_local` split (not distributed) nor a locally
+# generated one is there.
 if [[ -z "$SPLIT_JSON" || ! -f "$SPLIT_JSON" ]]; then
   d1_absent "D1 split JSON for grid=${GRID_SIZE} seed=${SEED} (or pass --split-json)" \
             "${SPLIT_JSON:-$SPLIT_PATTERN}"

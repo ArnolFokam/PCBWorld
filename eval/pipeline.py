@@ -347,10 +347,6 @@ def eval_kicad_pcb(
         flush=True,
     )
     return rows
-    return sorted(
-        output_rows.values(),
-        key=lambda r: (int(r.get("board_index", 0)), int(r.get("rollout_idx", 0))),
-    )
 
 
 # ============================================================================

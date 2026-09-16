@@ -62,8 +62,7 @@ One config per process (KiCad `RLRouter` singleton). Artifacts (JSON +
   `info["_prof"]["worker_compute_s"]`. Numerics/RNG untouched (timers only).
 - The timed mirrors (hooks.py / worker_shim.py) are pinned to their base
   functions by source digest in `mirror_contract.py` (static ast extraction,
-  stdlib-only — the same check runs pre-push as `tools/docs/check_docs.py`
-  `mirror-sync`);
+  stdlib-only);
   [tests/test_diagnostics/test_speed_profiler_mirrors.py](../../../tests/test_diagnostics/test_speed_profiler_mirrors.py)
   fails on base drift with a re-sync procedure in its message.
 

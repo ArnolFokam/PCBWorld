@@ -7,6 +7,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
@@ -31,6 +33,9 @@ def _engine_api_path(env: dict[str, str | None]) -> str:
     return result.stdout.strip()
 
 
+@pytest.mark.skipif(not (PROJECT_ROOT / "build_rl" / "pcbnew" / "python" / "rl").is_dir(),
+                    reason="no build_rl in this tree — it points at a build elsewhere "
+                           "(PCBWORLD_KICAD_RL_BUILD_DIR); the default-path contract needs the default")
 def test_engine_api_uses_default_build_rl_path_without_override() -> None:
     path = _engine_api_path(
         {

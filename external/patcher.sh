@@ -3,9 +3,8 @@
 # Copies all files from a patch directory into its target, preserving directory structure.
 # Usage: bash patcher.sh <target>
 #
-#   bash patcher.sh ragen        # applies RAGEN-patch      → RAGEN
 #   bash patcher.sh verl-agent   # applies verl-agent-patch → verl-agent
-#   bash patcher.sh all          # applies both
+#   bash patcher.sh all          # applies every overlay
 
 set -euo pipefail
 
@@ -47,24 +46,19 @@ apply_patch() {
 TARGET="${1:-}"
 
 if [[ -z "$TARGET" ]]; then
-    echo "Usage: bash patcher.sh <ragen|verl-agent|all>"
+    echo "Usage: bash patcher.sh <verl-agent|all>"
     exit 1
 fi
 
 case "$TARGET" in
-    ragen)
-        apply_patch "RAGEN"
-        ;;
     verl-agent)
         apply_patch "verl-agent"
         ;;
     all)
-        apply_patch "RAGEN"
-        echo "----------------------------------------"
         apply_patch "verl-agent"
         ;;
     *)
-        echo "Error: unknown target '$TARGET'. Use ragen, verl-agent, or all." >&2
+        echo "Error: unknown target '$TARGET'. Use verl-agent or all." >&2
         exit 1
         ;;
 esac

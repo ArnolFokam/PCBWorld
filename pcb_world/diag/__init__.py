@@ -49,10 +49,12 @@ def artifact_stem(role: str, *, with_host: bool = True) -> str:
     return f"{ts}_{role}{host}_{os.getpid()}"
 
 
-def read_rss_mb() -> float | None:
-    """Resident set size in MB via /proc (Linux; ~µs). None elsewhere."""
+def read_rss_mb(pid: int | None = None) -> float | None:
+    """Resident set size in MB via /proc (Linux; ~µs) — this process, or
+    ``pid``'s. None elsewhere, or once that process is gone."""
+    path = "/proc/self/statm" if pid is None else f"/proc/{int(pid)}/statm"
     try:
-        with open("/proc/self/statm") as f:
+        with open(path) as f:
             return int(f.read().split()[1]) * _PAGE_MB
     except OSError:
         return None

@@ -161,6 +161,34 @@ def test_d2b_geo_aspect_board_reproduction(tmp_path: Path) -> None:
     assert w * h == pytest.approx(sq_w * sq_h, rel=1e-6)
 
 
+def test_grid_generator_relative_out_prefix_lands_under_repo_var(monkeypatch, capsys) -> None:
+    """A relative --out-prefix resolves under the repository root, never under tools/.
+
+    generate_grid_boards.py derives repo_root from its own location
+    (tools/datagen/synthetic_generator/ -> parents[3]); one level short (parents[2]) put
+    every dataset under tools/var/. The reproduction tests above pass an absolute
+    --out-prefix, which hides that, so this one uses the relative form with --dry-run.
+    """
+    import importlib.util
+
+    assert (REPO_ROOT / "pcb_world").is_dir() and (REPO_ROOT / "tools").is_dir()
+    spec = importlib.util.spec_from_file_location("generate_grid_boards", GRID_GEN)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+
+    prefix = "var/datasets/zz_grid_probe"
+    monkeypatch.setattr(sys, "argv", [
+        str(GRID_GEN), "--grid", "10", "--n-train", "1", "--n-test", "1",
+        "--out-prefix", prefix, "--dry-run",
+    ])
+    mod.main()
+    out_dirs = [Path(m) for m in re.findall(r"--out-dir (\S+)$", capsys.readouterr().out, re.M)]
+
+    assert out_dirs == [REPO_ROOT / prefix, REPO_ROOT / f"{prefix}_test"]
+    for d in out_dirs:
+        assert "tools" not in d.relative_to(REPO_ROOT).parts
+
+
 if __name__ == "__main__":
     import shutil
 

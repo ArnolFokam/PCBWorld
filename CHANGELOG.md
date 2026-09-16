@@ -3,7 +3,36 @@
 Release notes for the PCBWorld environment, newest first. The engine is a separate program
 with its own version line — its notes are in the
 [PCBWorld-Engine](https://github.com/LGAI-Research/PCBWorld-Engine) repository's `CHANGELOG.md`
-— and every environment tag pins exactly one engine commit (see `Versioning` in the README).
+— and every environment tag pins exactly one engine commit: check out the tag and run
+`git submodule update --init` to get the engine it was tested with.
+
+## v1.0.1 — 2026-09-16
+
+Patch release. Observations, actions, reward, masking, DRC rules, benchmark splits and the wire
+protocol unchanged — v1.0.0 numbers carry over except for the net-subset fix.
+
+### Added
+- Quick start — three front-door scripts under `tools/quickstart/`, and two guides,
+  `docs/ENVIRONMENT.md` and `docs/METRICS.md`
+- Router provenance — build stamps `ENGINE_CPP_HASH`, environment refuses a router from other
+  sources (`PCBWORLD_ENGINE_ALLOW_MISMATCH=1` → warning)
+- `KICAD_ENGINE_MAX_RSS_MB` (default 1024, `0` off) — over-budget engine server replaced, not reused
+
+### Fixed
+- Net-subset (`target_nets`) — DRC scored whole-board after a board reload; whole-board unaffected
+- D1 recipes — two undefined helpers, so exit 127 instead of the documented exit 2
+- Checkpoint without `policy_net_select` read as a net index
+- Synthetic grid datasets — relative `--out-prefix` outside the repo root, split json without
+  `dataset_dirs`
+
+### Changed
+- README → short landing page; `docs/QUICKSTART.md` on D1 — protocol runs on a locally generated
+  corpus, the paper's own numbers do not
+
+### Removed
+- `external/RAGEN` and its overlay (`external/patcher.sh` takes `verl-agent` or `all`), and the
+  rule-based upstream notes — angle guidance moved to `methods/baselines/rule_based/README.md`
+- The documentation-consistency checker — development tooling, no longer shipped
 
 ## v1.0.0 — 2026-09-11
 

@@ -946,6 +946,14 @@ class PCBWorld(gym.Env):
         self._engine.close()
         self._engine = KiCadEngine(self.board_path, **self._engine_ctor_kwargs)
         self._engine.set_target_nets(self._target_nets)
+        # The rebuilt engine carries a FRESH DRCUtils, so the net-subset DRC
+        # filter has to be re-installed here too. Without it a reloaded episode
+        # is scored whole-board while the first (pristine) episode was scored
+        # target-scoped — the two would report different Phi/DRV for the same board.
+        self._engine.drc_helper.set_target_net_names(
+            frozenset(nc.net_name for nc in self._board_info.nets.values())
+            if self._target_nets is not None else None
+        )
         apply_default_drc_if_fallback(
             self._engine,
             config_path=self._drc_config_path,

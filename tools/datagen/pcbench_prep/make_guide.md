@@ -45,16 +45,10 @@ the log (see §7).
 python3 tools/datagen/pcbench_prep/make_guide.py --base-dir <newdrc-out>
 ```
 
-| Flag | Default | Meaning |
-|---|---|---|
-| `--base-dir` | *(required)* | Root holding the per-board folders (the `drc_fix_v9.py` output directory); subfolders are scanned in name order |
-| `--stem` | `processed_v9` | Input file stem inside each folder |
-| `--suffix` | `_guide` | Suffix of the generated files |
-| `--workers` | `8` | Process pool size; `<= 1` runs serially |
-| `--limit` | `0` | `0` = all folders, `N` = only the first `N` of the folder list |
-| `--targets` | *(all)* | Explicit folder names to process instead of scanning `--base-dir` |
-| `--log` | `/tmp/make_guide_log.json` | Per-board result log (overwritten on each run) |
-| `--verbose` | off | Per-board progress and tracebacks (serial mode prints one line per board) |
+`--base-dir` is the only required flag: the root holding the per-board folders written by
+`drc_fix_v9.py`, scanned in name order. The D3 set is built with `--stem processed_v9
+--suffix _guide_v3`, the names the split json expects. `--workers 1` runs serially. The full
+flag list is in `--help`.
 
 External requirements (resolved by [kicad_tools.py](kicad_tools.py); the run prints the
 choice on its first line):
@@ -104,31 +98,7 @@ choice on its first line):
    remove_routing_v9() → <suffix>_unrouted.kicad_pcb
 ```
 
-## 5. Key functions
-
-All in [make_guide.py](make_guide.py).
-
-| Function | Role |
-|---|---|
-| `extract_net_id_to_name` | Parses the top-level `(net id name)` declarations into `{id: name}` |
-| `extract_net_width_range` | Per-net `(min, max)` width over all `(segment ...)` and `(arc ...)` blocks (multi-line included), excluding net `0` |
-| `extract_pro_net_classes` | Reads `net_settings.classes` and `netclass_patterns` from a v9 `.kicad_pro` |
-| `extract_pcb_net_class_blocks` | Reads the `(net_class ...)` blocks of a legacy `.kicad_pcb` |
-| `derive_net_to_class` | Resolves each net to a class: explicit `nets` entry, else first matching pattern (`fnmatchcase`, case-sensitive), else `Default` |
-| `extract_setup_legacy_rules` | Maps legacy `(setup ...)` DRC keys (`trace_min`, …) onto the modern rule names |
-| `_detect_default_width` | Width used for nets with no segments: `Default` class `track_width`, else the smallest observed width, else `0.25` |
-| `_compute_widths_per_t` | Width of each net from its `t`: `max·(1−t) + floor·t`, where floor is the net's observed min raised to `min_track_width`. Nets with no segments stay at the default width |
-| `apply_net_widths_to_tracks` | Rewrites the `(width ...)` of every segment/arc block to its net's value |
-| `extract_uuid_to_net` / `extract_offending_net_ids` | Map DRC violation items back to net ids — by item UUID, falling back to the `[net_name]` pattern in the description |
-| `build_groups` | Groups nets by `(rounded width, preserved class parameters)`; parameters are copied verbatim from the class the net belonged to |
-| `assign_class_names` | Names each group: the smallest width becomes `Default`, the rest `guide_W<width>`; a name collision gets a `_v2`, `_v3`, … suffix |
-| `build_guide_pro` | Deep-copies the original pro, replaces `net_settings.classes` with the guide classes, and repoints `netclass_patterns` (a pattern equal to a net name → that net's guide class, anything else → `Default`) |
-| `rebuild_pcb_net_class_blocks` | Legacy boards only: drops the old `(net_class ...)` blocks and inserts the guide ones before the first `(module`/`(footprint` |
-| `remove_routing_v9` | Drops the `(segment ...)`, `(arc ...)` and `(via ...)` blocks |
-| `run_drc` / `drc_passes` | Writes the candidate pcb+pro to a temp dir, refills zones, runs `kicad-cli pcb drc`, and counts violations by type; a candidate passes only at zero violations |
-| `process_board` | Per-board driver: parse → trial loop → save → result record |
-
-## 6. Class parameters and naming
+## 5. Class parameters and naming
 
 - Preserved per-class parameters are `clearance`, `via_dia`, `via_drill`, `uvia_dia`,
   `uvia_drill` — only those actually present on some input class. They are carried into
@@ -158,7 +128,7 @@ All in [make_guide.py](make_guide.py).
   are mandatory there). Net names containing `(`, `)`, `/`, `+`, `-` or a space are
   quoted.
 
-## 7. Result log
+## 6. Result log
 
 `--log` receives a JSON list, one record per board:
 
@@ -179,7 +149,7 @@ trial — check the `tools:` line the run printed first (which `kicad-cli` it re
 
 The run also prints a status tally at the end.
 
-## 8. Pitfalls
+## 7. Pitfalls
 
 | Issue | What to do |
 |---|---|

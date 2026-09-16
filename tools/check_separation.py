@@ -30,11 +30,6 @@ Checks:
 Checks 3-5 need the engine checked out (``git submodule update --init``);
 they report SKIP, not failure, when it is absent.
 
-The environment side of the boundary — no GPL import outside
-``pcb_world/engine/`` and the native test dirs — is checked on every run of
-``tools/docs/check_docs.py`` (``import-hygiene``), which is where the rule
-that governs this repository's own files lives.
-
 Exit code 0 = every check that ran passed.
 """
 from __future__ import annotations
@@ -97,7 +92,7 @@ _SKIP_DIRS = {
 _SKIP_PREFIXES = (
     "engine/",                    # the engine submodule — checked separately
     ".claude/",                   # Claude Code working files — dev-only, never exported
-    "external/RAGEN/",            # third-party framework checkouts
+    ".gitlab/",                   # GitLab MR templates — dev-only, never exported
     "external/verl-agent/",
     "external/OrthoRoute/",
 )

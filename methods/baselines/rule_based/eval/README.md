@@ -27,7 +27,6 @@ methods/baselines/rule_based/eval/
     ├── aggregate_routable_only.py      upstream original (kept for reference)
     ├── aggregate_eval.py               upstream general-purpose aggregator
     ├── pcbench_fair95.txt              95-board fair-comparison subset
-    └── README_upstream.md              upstream notes on the eval pipeline
 ```
 
 The `logs/*.json` files are **gitignored** (large, redundant). The aggregator

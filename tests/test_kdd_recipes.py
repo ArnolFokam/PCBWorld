@@ -85,3 +85,38 @@ def test_recipe_pins_the_paper_knobs(name, recipe, tmp_path):
     if not module.endswith("train_grpo"):
         assert args.truncation_bootstrap is True, f"{name}: truncation bootstrap must be on (paper default)"
         assert getattr(reward, "truncation_mode", None) != "none" or args.truncation_bootstrap, name
+
+
+# The D1 stages are the one public path whose inputs are absent BY DESIGN (the paper
+# corpus is not distributed), so the absent branch — not the present one the tests above
+# exercise — is what a fresh clone actually runs. It shipped calling two functions that
+# were defined nowhere, so it died with `command not found` (127) instead of the exit 2 +
+# notice QUICKSTART documents.
+D1_STAGES = {
+    "eval": ["experiments/kdd/figure5_d1/run.sh", "eval"],
+    "train": ["experiments/kdd/figure5_d1/train_transformer_ppo.sh", "--grid-size", "10", "--dry-run"],
+}
+
+
+# The jumanji/sable rows are a record, not runnable here (experiments/kdd/figure5_d1/README.md
+# says why): the launchers must say so rather than exec a missing file.
+@pytest.mark.parametrize("launcher", ["train_jumanji_a2c.sh", "train_sable.sh"])
+def test_d1_baseline_launcher_refuses_and_says_the_runner_is_absent(launcher):
+    r = subprocess.run(["bash", f"experiments/kdd/figure5_d1/{launcher}",
+                        "--grid-size", "10", "--seed", "42", "--dry-run"],
+                       cwd=REPO, capture_output=True, text=True, timeout=300)
+    assert r.returncode == 2, f"{launcher}: exit {r.returncode}\n{r.stdout[-400:]}{r.stderr[-400:]}"
+    assert "not part of this repository" in r.stderr, f"{launcher}: notice must say the runner is absent\n{r.stderr[-400:]}"
+    assert "run_v56" in r.stderr, f"{launcher}: notice must name the runner\n{r.stderr[-400:]}"
+    assert "run_v56" not in r.stdout, f"{launcher}: must not log a command it cannot run\n{r.stdout[-400:]}"
+
+
+@pytest.mark.parametrize("stage", sorted(D1_STAGES), ids=sorted(D1_STAGES))
+def test_d1_stage_without_inputs_exits_2_with_the_generator_command(stage, tmp_path):
+    env = dict(os.environ, L1_GRIDS="10", SEEDS="42",
+               BOARDS_DIR=str(tmp_path / "no-boards"), CKPT=str(tmp_path / "no.pt"),
+               SPLIT_JSON=str(tmp_path / "no-split.json"), DATASET_ROOT=str(tmp_path / "no-root"))
+    r = subprocess.run(["bash", *D1_STAGES[stage]], cwd=REPO, env=env,
+                       capture_output=True, text=True, timeout=300)
+    assert r.returncode == 2, f"{stage}: exit {r.returncode} (127 = a preflight helper is undefined)\n{r.stderr[-800:]}"
+    assert "make_grid_dataset.sh" in r.stderr, f"{stage}: the notice must name the generator\n{r.stderr[-800:]}"
