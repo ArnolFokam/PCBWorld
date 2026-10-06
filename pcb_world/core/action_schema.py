@@ -44,10 +44,25 @@ MODE_SHOVE = MODE_LETTER_TO_INT["p"]
 MODE_WALKAROUND = MODE_LETTER_TO_INT["w"]
 
 
+# Full-word spellings an LLM caller naturally reaches for instead of the
+# single-letter codes (observed repeatedly in practice: a worker passing
+# "walkaround" where the docs say "w" crashes on `int("walkaround")` instead
+# of just working) - additive only, canonical letters/ints are unaffected.
+MODE_WORD_TO_INT: dict[str, int] = {
+    "mark": MODE_LETTER_TO_INT["m"], "mark_obstacles": MODE_LETTER_TO_INT["m"],
+    "shove": MODE_LETTER_TO_INT["p"], "push": MODE_LETTER_TO_INT["p"],
+    "walkaround": MODE_LETTER_TO_INT["w"], "walk_around": MODE_LETTER_TO_INT["w"],
+}
+
+
 def parse_mode(value: str) -> int:
-    """Convert a routing mode letter (m/p/w) or numeric string to int."""
+    """Convert a routing mode letter (m/p/w), full word (mark/shove/
+    walkaround), or numeric string to int."""
     if value in MODE_LETTER_TO_INT:
         return MODE_LETTER_TO_INT[value]
+    lowered = value.lower() if isinstance(value, str) else value
+    if lowered in MODE_WORD_TO_INT:
+        return MODE_WORD_TO_INT[lowered]
     return int(value)
 
 

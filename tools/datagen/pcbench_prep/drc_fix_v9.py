@@ -146,8 +146,14 @@ def process_sample(name: str) -> dict:
         viols = run_drc(pcb)
         ok = len(viols) == 0
 
+        # A re-run after an earlier pass wrongly marked this sample "ok" (e.g. a
+        # kicad-cli/DRC resolution bug silently no-opping every DRC check) must
+        # retract that stale OUT_DIR/name, not just skip writing a new one -
+        # otherwise a failing sample keeps a passing sample's leftover files
+        # forever, and downstream steps (make_guide, sort_prefix) never see the
+        # failure.
+        dst = OUT_DIR / name
         if ok:
-            dst = OUT_DIR / name
             if dst.exists():
                 shutil.rmtree(dst)
             dst.mkdir(parents=True)
@@ -157,6 +163,8 @@ def process_sample(name: str) -> dict:
                 ep = src_dir / extra
                 if ep.exists():
                     shutil.copy(ep, dst / extra)
+        elif dst.exists():
+            shutil.rmtree(dst)
 
         return {
             "name": name,

@@ -39,8 +39,22 @@ def kicad_cli() -> str:
     """Path of the kicad-cli to run; exits when there is none."""
     cli = os.environ.get("KICAD_CLI")
     if not cli:
+        # macOS: this CMake layout links kicad-cli straight into the .app
+        # bundle rather than at the flat path below. Prefer it when present -
+        # run from there, ../PlugIns/_pcbnew.kiface resolves via the normal
+        # @executable_path bundle convention. A flat copy run from outside the
+        # bundle cannot find its kiface this way ("Failed to load kiface
+        # library"), and KICAD_RUN_FROM_BUILD_DIR=1 does not fix that on this
+        # build - it resolves to an unrelated hardcoded absolute path baked
+        # into the KiCad source, not this build tree.
+        macos_bundled = BUILD_DIR / "kicad" / "KiCad.app" / "Contents" / "MacOS" / "kicad-cli"
         built = BUILD_DIR / "kicad" / "kicad-cli"
-        cli = str(built) if os.access(built, os.X_OK) else shutil.which("kicad-cli")
+        if os.access(macos_bundled, os.X_OK):
+            cli = str(macos_bundled)
+        elif os.access(built, os.X_OK):
+            cli = str(built)
+        else:
+            cli = shutil.which("kicad-cli")
     if not cli:
         raise SystemExit(f"kicad-cli not found: build it ({BUILD_HINT}), set KICAD_CLI, "
                          "or put a KiCad 9 kicad-cli on PATH")
@@ -64,7 +78,13 @@ def kicad_cli_uncapped() -> bool:
     env = os.environ.get("KICAD_CLI_UNCAPPED")
     if env is not None:
         return env not in ("0", "", "false")
-    build_root = Path(kicad_cli()).resolve().parent.parent
+    cli_path = Path(kicad_cli()).resolve()
+    if "KiCad.app" in cli_path.parts:
+        # macOS bundle: <build_root>/kicad/KiCad.app/Contents/MacOS/kicad-cli
+        build_root = cli_path.parents[4]
+    else:
+        # flat: <build_root>/kicad/kicad-cli
+        build_root = cli_path.parent.parent
     uncapped = (build_root / "pcbnew" / "python" / "rl" / "ENGINE_VERSION").is_file()
     os.environ["KICAD_CLI_UNCAPPED"] = "1" if uncapped else "0"
     return uncapped
