@@ -2,7 +2,7 @@
 	path = engine
 	# The engine is a separate GPLv3 program in its own repository. Nothing under
 	# engine/ is tracked or distributed here — only this pointer.
-	url = git@github.com:ArnolFokam/PCBWorld-Engine.git
+	url = https://github.com/ArnolFokam/PCBWorld-Engine.git
 	branch = pcb-routing-explore
 	shallow = true
 	ignore = dirty
